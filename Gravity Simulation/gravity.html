@@ -1,0 +1,239 @@
+<head>
+  <style>
+    body{
+      margin:0;
+      padding:0;
+    }
+    canvas{
+      width:100vw;
+      height:100vh;
+      margin:0;
+    }
+    #controlPanel{
+      position: fixed;
+      top:0;
+      left:0;
+      background-color: #ccc;
+      border: solid black 1px;
+      padding:5px;
+    }
+    #FPSBox{
+      position: fixed;
+      top:0;
+      right:0;
+      background-color: #ccc;
+      border: solid black 1px;
+      padding:5px;
+      width:40px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controlPanel">
+    mass: <input type="number" id="mass" value="10"><br />
+    tracelines: <input type="checkbox" id="tl" checked="true"><br />
+    timeflow: <input type="checkbox" id="tf" checked="true"><br />
+  </div>
+  <div id="FPSBox" onselectstart="return false"></div>
+  <canvas id="canvas" width="1920" height="1069"></canvas>
+</body>
+<script>
+  var objList = [];
+  var tracelines = [];
+  var G = 10000; //graqvitay const
+  var mass = 0;
+  var dt = 0.001;
+  var canvas = document.getElementById("canvas");
+  var ctx = canvas.getContext("2d");
+  var toggleTracelines = 0;
+  var toggleTimeflow = 0;
+  var TLTimer = 0;
+
+  var tx = 0;
+  var ty = 0;
+
+  function traceline(x,y){
+    this.x = x;
+    this.y = y;
+    this.alpha = 1;
+  }
+  function obj(x,y,r,vx,vy){
+    this.x = x;
+    this.y = y;
+    this.r = r;
+    this.vx = vx;
+    this.vy = vy;
+    this.ax = 0;
+    this.ay = 0;
+    this.v = Math.sqrt(this.vx**2+this.vy**2);
+  }
+
+  function addObj1(){
+    tx = event.clientX;
+    ty = event.clientY;
+
+
+  }
+  function addObj2(){
+    objList.push(new obj(tx,ty,mass,2*(event.clientX-tx),2*(event.clientY-ty)));
+  }
+
+  canvas.addEventListener("mousedown",addObj1);
+  canvas.addEventListener("mouseup",addObj2);
+
+
+
+///////////////////////////////////////////////////////////////////////////////////
+  function frame(){
+    var timestamp = new Date;
+    mass = Math.sqrt(parseInt(document.getElementById("mass").value));
+    toggleTracelines = document.getElementById("tl").checked;
+    toggleTimeflow = document.getElementById("tf").checked;
+
+//setting screen
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx.fillStyle = "#FFF";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#000";
+
+//A little physics
+    for (var i = 0; i < objList.length; i++) {
+      if(objList[i] == undefined){
+        continue;
+      }
+      objList[i].ax = 0;
+      objList[i].ay = 0;
+      for (var j = 0; j < objList.length; j++){
+        if(j != i && objList[j]!= undefined && objList[i]!= undefined){
+        objList[i].ax -=G*objList[j].r**2*((((objList[i].x - objList[j].x)**2 + (objList[i].y - objList[j].y)**2)**-1)**(3/2))*(objList[i].x - objList[j].x);
+        objList[i].ay -=G*objList[j].r**2*((((objList[i].x - objList[j].x)**2 + (objList[i].y - objList[j].y)**2)**-1)**(3/2))*(objList[i].y - objList[j].y);
+        }
+      }
+    }
+
+//Another bit of physics
+    if (toggleTimeflow == true) {
+      for (var i = 0; i < objList.length; i++) {
+        if(objList[i] == undefined){
+          continue;
+        }
+        objList[i].vx += objList[i].ax*dt;
+        objList[i].vy += objList[i].ay*dt;
+        objList[i].x += objList[i].vx*dt;
+        objList[i].y += objList[i].vy*dt;
+        if (tracelines == undefined && toggleTracelines == true) {
+          tracelines = [];
+        }
+        if(toggleTracelines == true && TLTimer == 100){
+
+          tracelines.push(new traceline(objList[i].x,objList[i].y));
+
+        }
+      }
+      if(TLTimer == 100){
+        TLTimer = 0;
+      }
+      TLTimer++;
+    }
+
+//checking for collision
+    for (var i = 0; i < objList.length; i++) {
+      for (var j = 0; j < objList.length; j++){
+        if(j != i && objList[j]!= undefined && objList[i]!= undefined){
+          if(((objList[i].x - objList[j].x)**2 + (objList[i].y - objList[j].y)**2) < (objList[i].r + objList[j].r)**2){
+            var newX = (objList[i].x * objList[i].r + objList[j].x * objList[j].r) / (objList[j].r + objList[i].r);
+            var newY = (objList[i].y * objList[i].r + objList[j].y * objList[j].r) / (objList[j].r + objList[i].r);
+            var newR = Math.sqrt(objList[i].r**2+objList[j].r**2);
+            var newVX = (objList[i].vx * objList[i].r**2 + objList[j].vx * objList[j].r**2) / (objList[j].r**2 + objList[i].r**2);
+            var newVY = (objList[i].vy * objList[i].r**2 + objList[j].vy * objList[j].r**2) / (objList[j].r**2 + objList[i].r**2);
+            objList.push(new obj(newX,newY,newR,newVX,newVY));
+            objList[i]=undefined;
+            objList[j]=undefined;
+          }
+        }
+      }
+    }
+
+//Cleaning empty elements in objList
+    var tempArr = [];
+    for (var i = 0; i < objList.length; i++) {
+      if(objList[i] != undefined){
+        tempArr.push(objList[i]);
+      }
+    }
+    objList = undefined;
+    objList = tempArr;
+
+//Traceline lifespan
+
+    if (toggleTracelines == true) {
+      for (var i = 0; i < tracelines.length; i++) {
+        tracelines[i].alpha-=0.001;
+        if(tracelines[i].alpha<=0){
+          tracelines[i] = undefined;
+        }
+      }
+
+//Cleaning empty elements in tracelines
+      var tempArr = [];
+      for (var i = 0; i < tracelines.length; i++) {
+        if(tracelines[i] != undefined){
+          tempArr.push(tracelines[i]);
+        }
+      }
+      tracelines = undefined;
+      tracelines = tempArr;
+
+//Drawing tracelines
+      ctx.fillStyle="#000";
+      for (var i = 0; i < tracelines.length; i++) {
+        ctx.globalAlpha=tracelines[i].alpha/5;
+        ctx.fillRect(tracelines[i].x,tracelines[i].y,2,2);
+      }
+      ctx.globalAlpha = 1;
+  }
+  else{
+    tracelines = undefined;
+  }
+
+//Drawing objects
+    ctx.globalAlpha = 1;
+    for (var i = 0; i < objList.length; i++){
+      if(objList[i] == undefined){
+        continue;
+      }
+      ctx.beginPath();
+      ctx.arc(objList[i].x, objList[i].y, objList[i].r, 0, 2*Math.PI);
+      ctx.strokeStyle = '#000000';
+      ctx.stroke();
+      ctx.fillStyle = '#FF0000';
+      ctx.fill();
+    }
+    var t = new Date - timestamp;
+    var fps;
+    if(t == 0){
+      fps = "1000+"
+    }
+    else{
+      fps =Math.round(1000/t);
+    }
+
+  document.getElementById("FPSBox").innerHTML = fps;
+  }
+
+
+  setInterval(frame,1);
+  var i = 0;
+  while (i<500) {
+    var x = Math.random()*canvas.width;
+    var y = Math.random()*canvas.height;
+      objList.push(new obj(x,y,Math.random()*5,Math.random()*50,Math.random()*50));
+    i++;
+  }
+
+
+
+
+
+</script>

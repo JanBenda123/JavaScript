@@ -1,0 +1,140 @@
+<canvas id="canvas" width="500" height="500"style="border: 1px solid black;"></canvas><br />
+<span id="coord"></span>
+
+<script src="Complex-lib.js"></script>
+<script type="text/javascript">
+
+    var canvas = document.getElementById("canvas");
+    var ctx = canvas.getContext("2d");
+    var zoomSpeed = 1.5
+    var centerX = 0;
+    var centerY = 0;
+    var radius = 1.5;
+
+    var iterations
+
+
+
+    var interval;
+
+    function iterateFunction(prev,orig){
+        x = new complex(orig.x, orig.y)
+        y = new complex(prev.x, prev.y)
+
+        nextY = add(powerNatural(y,3),x)
+
+
+
+
+
+        return {    x:nextY.r,y: nextY.i}
+    }
+    function EscapeCondition(coord){
+        return coord.x**2+coord.y**2>2 ? true : false;
+    }
+    function color(coord, iter){
+        let k = 10
+        let x=(Math.log(Math.log(coord.x**2+coord.y**2))/Math.log(2))+(-1-iter)/k
+        let col = {     r:Math.floor((1-Math.cos(x))*128),
+                        g:Math.floor((1-Math.cos(1/3.1415926*x))*128),
+                        b:Math.floor((1-Math.cos(1/2.7182818*x))*128)
+                    }
+        let Hex = rgbToHex(col)
+        return Hex
+    }
+
+
+    function componentToHex(c) {
+      let hex = c.toString(16);
+      return hex.length == 1 ? "0" + hex : hex;
+    }
+    function rgbToHex(cRGB) {
+      return "#" + componentToHex(cRGB.r) + componentToHex(cRGB.g) + componentToHex(cRGB.b);
+    }
+
+    function Point(x,y,xScreen,yScreen){
+        this.xScreen = xScreen;
+        this.yScreen = yScreen;
+        this.originX = x;
+        this.originY = y;
+        this.x = x;
+        this.y = y;
+        this.iter = 0
+
+        this.escaped = false;
+
+        this.iterate = function (){
+                if(!this.escaped){
+                    coord = {x:this.x,y:this.y}
+                    newCoord = iterateFunction(coord,{x:this.originX,y:this.originY})
+                    this.x = newCoord.x
+                    this.y = newCoord.y
+                    this.iter++
+                    if(EscapeCondition(newCoord)){
+                        ctx.fillStyle = color(newCoord, this.iter)
+                        ctx.fillRect(this.xScreen,this.yScreen,1,1)
+                        this.escaped = true;
+                    }
+                }
+
+        }
+    }
+    function zoom(val){
+        switch(Math.sign(val)){
+            case 1: radius *= zoomSpeed; break;
+            case -1: radius /= zoomSpeed;break;
+        }
+        start();
+    }
+
+    function getMousePos(canvas, evt) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: evt.clientX - rect.left+1,
+      y: evt.clientY - rect.top+1
+    };}
+
+    function shift(evt){
+        pos = getMousePos(canvas, evt) ;
+        centerX += (2*pos.x/canvas.width-1)*radius ;
+        centerY -= (2*pos.y/canvas.height-1)*radius ;
+        //console.log(centerX,centerY);
+        start();
+    }
+    function updateCoord(){
+        document.getElementById("coord").innerHTML = "X: " + centerX + "    Y: "+ centerY+"<br />Zoom" + radius+"<br / >Iterations: "+iterations;
+    }
+
+    function start(){
+        clearInterval(interval)
+
+        iterations = 0;
+        updateCoord()
+
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        var pointArray = [];
+        for(var i = 0;i < canvas.width;i++){
+            for(var j = 0;j < canvas.height;j++){
+                pointArray[i+canvas.width*j] = new Point(i/canvas.width*(2*radius) + centerX - radius,j/canvas.height*(2*radius) - centerY - radius,i,j);
+            }
+        }
+
+        function step(){
+            for(var i = 0;i < pointArray.length;i++){
+
+                pointArray[i].iterate();
+
+            }
+            iterations ++
+            updateCoord()
+        }
+
+        interval = setInterval(step,1);
+    }
+    start();
+
+    //canvas.addEventListener("wheel", event => shift({clientX: event.x, clientY: event.y}));
+    canvas.addEventListener("wheel", event => zoom(event.deltaY));
+    canvas.addEventListener("click", event => shift(event));
+
+</script>
